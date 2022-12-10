@@ -1,0 +1,192 @@
+---
+title: ""LOADING AND UNLOADING OF GOODS IN ESTONIAN PORTS by Year and Month""
+author: "Dhurba Gnawali"
+date: "2022-12-03"
+output: pdf_document
+---
+```{r}
+#install.packages("knitr")
+library(knitr)
+#install.packages("tinytex")
+tinytex::install_tinytex()
+```
+
+
+```{r setup, include=FALSE}
+#install.packages("rmarkdown")
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+#library(tseries)
+library(forecast)
+library(lmtest)
+```
+
+##1 LOADING AND UNLOADING OF GOODS IN ESTONIAN PORTS
+
+
+
+```{r}
+data2 = read.csv("TS185_20221031-105754.csv",skip=4,header = FALSE,na.strings = "..")
+head(data2)
+
+```
+
+Data clearance and structuring 
+```{r}
+data2.1<-data2[2:31,]
+class(data2.1)
+head(data2.1)
+```
+
+
+```{r}
+series<-c(t(data2.1[,3:14]))
+series<-series[1:(length(series)-3)]
+```
+
+
+```{r}
+
+Z1 = ts(series,start=c(1993,1),frequency=12)
+plot(Z1)
+
+```
+
+
+```{r}
+# Function that plots the time series and corresponding auto correlations
+# and partial auto correlations
+TSGraphs = function(series, lags=30 ){
+  layout (1:3)
+  par(mar = c(3, 4, 1, 1))
+  plot(series)
+  acf(series,lags)
+  pacf(series,lags)
+  layout(1)
+}
+```
+
+## 1.2 Theoretical backgraound
+
+
+
+```{r}
+TSGraphs(Z1)
+```
+
+Now the series is stationary.
+```{r}
+TSGraphs(diff(Z1))
+```
+
+# Choosing the suitable model 
+
+#Lets start from the simple model AR(2)
+m1.1=arima(Z1, order=c(0,1,2))
+
+```{r}
+m1.1=arima(Z1, order=c(0,1,2))
+m1.1
+```
+```{r}
+errors=residuals(m1.1)
+acf(errors,30)
+Box.test(errors,lag=20,type="Ljung-Box",fitdf = 2)
+tsdiag(m1.1,30)
+predict(m1.1,2)
+```
+
+p-values and acf error are not acceptable so we move into the bit complex model that can be fit to this data i.e ARIMA based on the acf and pacf reading.
+
+```{r}
+m1.1=arima(Z1,order=c(2,1,2))
+m1.1
+```
+
+
+
+Dignostic plot of the model
+```{r}
+
+errors=residuals(m1.2)
+acf(errors,30)
+Box.test(errors,lag=20,type="Ljung-Box",fitdf = 2)
+tsdiag(m1.2,30)
+```
+Arima model is not still acceptable becaues of first one reason is p value is not acceptable so we have to try to fit ARIMA seasonal model rather going to complex model.
+
+```{r}
+#Arima model fitting with the seasonality
+m1.2=arima(Z1,order =c(1,1,4),seasonal=list(order=c(1,1,5),period=12))
+m1.2
+```
+
+
+Dignostic plot of the model
+```{r}
+errors=residuals(m1.3)
+acf(errors,30)
+Box.test(errors,lag=20,type="Ljung-Box",fitdf = 2)
+tsdiag(m1.3,30)
+```
+
+
+
+Final acceptable statistical model of the given data sets is following
+
+```{r}
+m1.4=arima(Z1,order =c(1,1,4),seasonal=list(order=c(1,1,5),period=12))
+m1.4
+```
+
+
+```{r}
+errors=residuals(m1.4)
+acf(errors,30)
+Box.test(errors,lag=20,type="Ljung-Box",fitdf = 2)
+tsdiag(m1.4,30)
+```
+##Garch Model 
+
+```{r}
+library(fGarch)
+m1.3<-garchFit(Z1~arma(2,2)+garch(1,3),data=Z1)
+#summary(m1.3)
+```
+
+
+
+AIC and BIC values 
+```{r}
+AIC(m1.1,m1.2,m1.3)
+BIC(m1.1,m1.2,m1.3)
+```
+## 2.3 Best ARIMA/SARIMA model 
+
+Finally we decided to choose the best model (m1.3)after comparing the number of statistical parameters such as residual, acf error, Ljung-Box test(especially ) and finally compare the AIC and BIC value of different model, least one the AIC and BIC value better will be the model
+
+##Mathematical form of ARIMA model
+
+General mathematical form of the ARIMA$(p,d,q)$ X $(P,D,Q)$ is 
+\[\phi(B) \Phi(B_s)(1-B)^d(1-B_s)^DZ_t=\theta(B)\Theta(B_s)A_t,\]
+where $\phi(x)=1-\sum_{i=1}^{p}\phi_ix^i$ and $\theta(x)=1-\sum_{i=1}^{q}\theta_ix^i$
+
+```{r}
+m1.app<-auto.arima(Z1)
+m1.app
+predapp<-forecast(m1.app,h=24)
+plot(predapp)
+tsdiag(m1.app,30)
+
+errors1=residuals(m1.app)
+acf(errors1,3)
+Box.test(errors1,lag=20,type="Ljung-Box",fitdf = 2)
+```
+```
+
+
+
+
