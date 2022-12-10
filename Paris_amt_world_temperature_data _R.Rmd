@@ -1,0 +1,218 @@
+---
+title: "Time series"
+output: pdf_document
+date: "2022-11-09"
+---
+
+```{r}
+#Necessary library
+library(tseries)
+library(forecast)
+library(lmtest)
+```
+
+## 1 Average monthly temperature across the world
+
+
+
+```{r}
+data = read.csv("Paris_AMT.csv",sep=";",dec=",",skip=15,header = TRUE)
+head(data)
+```
+
+
+```{r}
+head(data)
+class(data$X)
+class(data)
+is.na(data)# checking the Na value in the data set
+```
+
+
+
+```{r}
+# function to obtain the autocorrelation and partial autocorrelation #function of time series
+TSgraphs=function(series,nlag=30){
+  layout(1:3)
+  par(mar = c(3, 4, 1, 1))
+  plot(series)
+  acf(series,nlag)
+  pacf(series,nlag)
+  layout(1)
+}
+```
+
+# reading our series Z1,
+```{r}
+Z1 = ts(data$X,start=c(1990,1),frequency=12)
+TSgraphs(Z1)
+```
+
+PP test to confirm the stationarity of the series. The value obtain is 0.01 less then 0.05, so we reject the null hypothesis it confirm our series is stationary 
+
+```{r}
+PP.test(Z1)
+```
+
+series is clearly non seasonal, so try first the Hot winter method and clarly additive in nature.
+
+```{r}
+m1.a = HoltWinters(Z1,seasonal="additive")
+#m1.m = HoltWinters(Z1,seasonal="multiplicativ")
+```
+
+acf residuals
+
+```{r}
+#acf(residuals(m1.m),40)
+acf(residuals(m1.a),40)
+```
+
+Ljung-Box test for the additive and multiplicative model
+
+```{r}
+#Box.test(residuals(m1.m),lag=40,fitdf=3,type="Ljung-Box")
+Box.test(residuals(m1.a),lag=40,fitdf=3,type="Ljung-Box")
+```
+But, its p value is very less(p-value = 8.164e-11) so it would be very difficult to accept this model. 
+
+Lets see the Root mean square error for this model
+
+```{r}
+#RMSEM=sqrt(mean(residuals(m1.m)**2))
+RMSEA=sqrt(mean(residuals(m1.a)**2))
+#RMSEM
+RMSEA
+```
+
+```{r}
+
+```
+##start with the non seasonal simple model first
+First start with the very simple model AR(2) and AR(3) and AR(4). We start from this because we can see strong lags at the beginning at the PACF however ACF is showing its some seasonal pattern.
+Note:We did not applied difference so middle(d) will zero. In case if we make difference we have to replace 0 by 1.
+
+```{r}
+m1.01=arima(Z1,order = c(0,0,2)) # order 2 ie AR(2)
+```
+
+```{r}
+m1.02=arima(Z1,order = c(0,0,3)) #order 3 i.e. AR(3)
+```
+
+```{r}
+m1.03=arima(Z1,order = c(0,0,4))# order 4 i.e. AR(4)
+```
+
+```{r}
+errors01=residuals(m1.01)
+errors02=residuals(m1.02)
+errors03=residuals(m1.03)
+acf(errors01,30)
+acf(errors02,30)
+acf(errors03,30)
+Box.test(errors01,lag=20,type="Ljung-Box",fitdf = 2)
+Box.test(errors02,lag=20,type="Ljung-Box",fitdf = 2)
+Box.test(errors03,lag=20,type="Ljung-Box",fitdf = 2)
+tsdiag(m1.01)
+tsdiag(m1.02)
+tsdiag(m1.03)
+
+```
+The very less P values and acf(error) does not show good result so we can not accept the result 
+
+
+Lets try first with the ARIMA model 
+```{r}
+m1.1=arima(Z1,order = c(1,0,2))
+m1.2=arima(Z1,order = c(3,0,2))
+m1.3=arima(Z1,order = c(4,0,2))
+```
+
+```{r}
+errors1=residuals(m1.1)
+errors2=residuals(m1.2)
+errors3=residuals(m1.3)
+acf(errors,30)
+acf(errors2,30)
+acf(errors3,30)
+Box.test(errors1,lag=20,type="Ljung-Box",fitdf = 2)
+Box.test(errors2,lag=20,type="Ljung-Box",fitdf = 2)
+Box.test(errors3,lag=20,type="Ljung-Box",fitdf = 2)
+```
+
+
+In this model is as well not acceptable becaue if uts very less p value and acf error so we are trying to move toward the seasonal arima model rather then to try higher order arima without seasonality. It is always important to note that simple model with less order or less number of parameter would be the better model.
+
+##Lets try to fit the seasonal ARIMA model
+
+```{r}
+m1.4=arima(Z1,order =c(1,0,3),seasonal=list(order=c(1,0,1),period=12))
+m1.5=arima(Z1,order=c(1,0,4),seasonal=list(order=c(2,0,1),period=12))
+m1.5
+```
+
+```{r}
+m1.5=arima(Z1,order=c(1,0,4),seasonal=list(order=c(2,0,1),period=12))
+m1.5
+```
+
+
+```{r}
+errors4=residuals(m1.4)
+errors5=residuals(m1.5)
+#errors6=residuals(m1.6)
+acf(errors4,30)
+acf(errors5,30)
+#acf(errors6,30)
+```
+
+Ljung-Box test
+
+```{r}
+Box.test(errors4,lag=20,type="Ljung-Box",fitdf = 2)
+Box.test(errors5,lag=20,type="Ljung-Box",fitdf = 2)
+#Box.test(errors6,lag=20,type="Ljung-Box",fitdf = 2)
+```
+
+```{r}
+tsdiag(m1.4,30)
+tsdiag(m1.5,30)
+#tsdiag(m1.6,30)
+```
+
+```{r}
+m1.4
+m1.5
+pred<-forecast(m1.5,h=24)
+plot(pred)
+```
+
+```{r}
+AIC(m1.4,m1.5)
+BIC(m1.4,m1.5)
+```
+##Garch model 
+```{r}
+library(fGarch)
+m1.10<-garchFit(Z1~arma(2,3)+garch(3,4),data=Z1)
+#summary(m1.10)
+m1.10
+```
+
+
+```{r}
+#plot(Z1)
+m1.app<-auto.arima(Z1)
+m1.app
+predapp<-forecast(m1.app,h=24)
+plot(predapp)
+tsdiag(m1.app,30)
+
+errors1=residuals(m1.app)
+acf(errors1,3)
+Box.test(errors1,lag=20,type="Ljung-Box",fitdf = 2)
+```
+
+
+
